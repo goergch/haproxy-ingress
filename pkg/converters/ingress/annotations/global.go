@@ -438,6 +438,7 @@ func (c *updater) buildGlobalCustomConfig(d *globalData) {
 	}
 	d.global.CustomFrontendLate = selectedCustomFrontendConf
 
+	d.global.DefaultHost = d.mapper.Get(ingtypes.GlobalDefaultHost).Value
 	d.global.CustomSections = utils.LineToSlice(d.mapper.Get(ingtypes.GlobalConfigSections).Value)
 	d.global.CustomTCP = utils.LineToSlice(d.mapper.Get(ingtypes.GlobalConfigTCP).Value)
 	proxy := map[string][]string{}

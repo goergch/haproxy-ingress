@@ -50,6 +50,7 @@ const (
 	GlobalCrossNamespaceServices       = "cross-namespace-services"
 	GlobalDefaultBackendRedirect       = "default-backend-redirect"
 	GlobalDefaultBackendRedirectCode   = "default-backend-redirect-code"
+	GlobalDefaultHost                  = "default-host"
 	GlobalDNSAcceptedPayloadSize       = "dns-accepted-payload-size"
 	GlobalDNSClusterDomain             = "dns-cluster-domain"
 	GlobalDNSHoldObsolete              = "dns-hold-obsolete"
