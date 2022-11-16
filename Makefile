@@ -26,8 +26,8 @@ install:
 
 .PHONY: image
 image:
-	docker build -t localhost/haproxy-ingress:latest rootfs
+	docker build --platform linux/amd64 -t goergch/haproxy-ingress:latest rootfs
 
 .PHONY: docker-builder
 docker-builder:
-	docker build -t localhost/haproxy-ingress:latest . -f builder/Dockerfile
+	docker build --platform linux/amd64 -t goergch/haproxy-ingress:latest . -f builder/Dockerfile
