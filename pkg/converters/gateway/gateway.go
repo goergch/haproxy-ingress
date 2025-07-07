@@ -287,7 +287,7 @@ func (c *converter) createBackend(source *Source, index string, backendRefs []ga
 			c.logger.Warn("skipping service '%s' on %s: port '%s' not found", back.Name, source, portStr)
 			continue
 		}
-		epready, _, err := convutils.CreateEndpoints(c.cache, svc, svcport)
+		epready, _, err := convutils.CreateEndpoints(c.cache, svc, svcport, c.options.EnableEPSlices)
 		if err != nil {
 			c.logger.Warn("skipping service '%s' on %s: %v", back.Name, source, err)
 			continue
@@ -319,7 +319,7 @@ func (c *converter) createBackend(source *Source, index string, backendRefs []ga
 	convutils.RebalanceWeight(cl, 128)
 	for i := range backends {
 		for _, addr := range backends[i].epready {
-			ep := habackend.AcquireEndpoint(addr.IP, addr.Port, addr.TargetRef)
+			ep := habackend.AddEndpoint(addr.IP, addr.Port, addr.TargetRef)
 			ep.Weight = cl[i].Weight
 		}
 	}
@@ -399,8 +399,8 @@ func (c *converter) handlePassthrough(path string, h *hatypes.Host, b *hatypes.B
 		return
 	}
 	for _, hpath := range h.FindPath("/") {
-		modeTCP := hpath.Backend.ModeTCP
-		if modeTCP != nil && !*modeTCP {
+		backend := c.haproxy.Backends().FindBackend(hpath.Backend.Namespace, hpath.Backend.Name, hpath.Backend.Port)
+		if backend != nil && !backend.ModeTCP {
 			// current path has a HTTP backend in the root path of a passthrough
 			// domain, and the current haproxy.Host implementation uses this as the
 			// target HTTPS backend. So we need to:

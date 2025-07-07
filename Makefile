@@ -2,7 +2,7 @@
 default: build
 
 GOOS=linux
-GOARCH?=amd64
+GOARCH?=$(shell go env GOARCH)
 GIT_REPO=$(shell git config --get remote.origin.url)
 GIT_COMMIT=git-$(shell git rev-parse --short HEAD)
 VERSION_PKG=github.com/jcmoraisjr/haproxy-ingress/pkg/version
@@ -12,6 +12,11 @@ LOCAL_FS_PREFIX?=/tmp/haproxy-ingress
 KUBECONFIG?=$(HOME)/.kube/config
 CONTROLLER_CONFIGMAP?=
 CONTROLLER_ARGS?=
+
+LOCALBIN?=$(shell pwd)/bin
+LOCAL_GOTESTSUM=$(LOCALBIN)/gotestsum
+LOCAL_GOLANGCI_LINT=$(LOCALBIN)/golangci-lint
+LOCAL_SETUP_ENVTEST=$(LOCALBIN)/setup-envtest
 
 .PHONY: build
 build:
@@ -32,14 +37,22 @@ run: build
 	  --configmap=$(CONTROLLER_CONFIGMAP)\
 	  $(CONTROLLER_ARGS)
 
-.PHONY: lint
-lint:
-	golangci-lint run
+.PHONY: gotestsum
+gotestsum:
+	test -x $(LOCAL_GOTESTSUM) || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@latest
 
 .PHONY: test
-test: lint
+test: gotestsum
 	## fix race and add -race param
-	go test -tags cgo ./...
+	$(LOCAL_GOTESTSUM) --format=testname -- -tags=cgo ./pkg/...
+
+.PHONY: golangci-lint
+golangci-lint:
+	test -x $(LOCAL_GOLANGCI_LINT) || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+.PHONY: lint
+lint: golangci-lint
+	$(LOCAL_GOLANGCI_LINT) run --verbose
 
 .PHONY: linux-build
 linux-build:

@@ -153,6 +153,7 @@ func (c *updater) UpdateGlobalConfig(haproxyConfig haproxy.Config, mapper *Mappe
 	d.global.MaxConn = mapper.Get(ingtypes.GlobalMaxConnections).Int()
 	d.global.DefaultBackendRedir = mapper.Get(ingtypes.GlobalDefaultBackendRedirect).String()
 	d.global.DefaultBackendRedirCode = mapper.Get(ingtypes.GlobalDefaultBackendRedirectCode).Int()
+	d.global.NoRedirects = utils.Split(mapper.Get(ingtypes.GlobalNoRedirectLocations).String(), ",")
 	d.global.DrainSupport.Drain = mapper.Get(ingtypes.GlobalDrainSupport).Bool()
 	d.global.DrainSupport.Redispatch = mapper.Get(ingtypes.GlobalDrainSupportRedispatch).Bool()
 	d.global.Cookie.Key = mapper.Get(ingtypes.GlobalCookieKey).Value
@@ -212,6 +213,7 @@ func (c *updater) UpdateHostConfig(host *hatypes.Host, mapper *Mapper) {
 	host.Alias.AliasName = mapper.Get(ingtypes.HostServerAlias).Value
 	host.Alias.AliasRegex = mapper.Get(ingtypes.HostServerAliasRegex).Value
 	host.TLS.UseDefaultCrt = mapper.Get(ingtypes.HostSSLAlwaysAddHTTPS).Bool()
+	host.TLS.FollowRedirect = mapper.Get(ingtypes.HostSSLAlwaysFollowRedirect).Bool()
 	host.VarNamespace = mapper.Get(ingtypes.HostVarNamespace).Bool()
 	c.buildHostAuthTLS(data)
 	c.buildHostCertSigner(data)

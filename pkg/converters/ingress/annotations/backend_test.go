@@ -196,6 +196,7 @@ func TestAffinity(t *testing.T) {
 
 func TestAuthExternal(t *testing.T) {
 	testCase := []struct {
+		global     bool
 		url        string
 		signin     string
 		method     string
@@ -290,7 +291,7 @@ func TestAuthExternal(t *testing.T) {
 				AuthPath:        "/app",
 			},
 			expIP:   []string{"10.0.0.200:8080"},
-			logging: `WARN ignoring invalid sign-in URL in ingress 'default/ing1': http://invalid'`,
+			logging: `WARN ignoring invalid sign-in URL on ingress 'default/ing1': http://invalid'`,
 		},
 		// 10
 		{
@@ -478,8 +479,35 @@ func TestAuthExternal(t *testing.T) {
 			},
 			expIP: []string{"10.0.0.2:80"},
 		},
+		// 28
+		{
+			global: true,
+			url:    "http://app1.local",
+			expBack: hatypes.AuthExternal{
+				AuthBackendName: "_auth_4001",
+				AuthPath:        "/",
+			},
+			expIP: []string{"10.0.0.2:80"},
+		},
+		// 29
+		{
+			global:  true,
+			url:     "svc://authservice:80/auth",
+			expBack: hatypes.AuthExternal{AlwaysDeny: true},
+			logging: `WARN skipping auth-url on <global>: a globally configured auth-url is missing the namespace`,
+		},
+		// 30
+		{
+			global: true,
+			url:    "svc://default/authservice:80/auth",
+			expBack: hatypes.AuthExternal{
+				AuthBackendName: "_auth_4001",
+				AuthPath:        "/auth",
+			},
+			expIP: []string{"10.0.0.11:8080"},
+		},
 	}
-	source := &Source{
+	defaultSource := &Source{
 		Namespace: "default",
 		Name:      "ing1",
 		Type:      "ingress",
@@ -528,6 +556,10 @@ func TestAuthExternal(t *testing.T) {
 			ingtypes.BackAuthHeadersSucceed: "*",
 			ingtypes.BackAuthHeadersFail:    "*",
 			ingtypes.BackAuthMethod:         "GET",
+		}
+		var source *Source
+		if !test.global {
+			source = defaultSource
 		}
 		d := c.createBackendMappingData("default/app", source, defaults, ann, []string{"/"})
 		u.buildBackendAuthExternal(d)
@@ -1385,6 +1417,26 @@ func TestCors(t *testing.T) {
 				},
 			},
 		},
+		// 8
+		{
+			ann: map[string]map[string]string{
+				"/": {
+					ingtypes.BackCorsEnable:       "true",
+					ingtypes.BackCorsAllowHeaders: "*",
+				},
+			},
+			expected: map[string]hatypes.Cors{
+				"/": {
+					Enabled:          true,
+					AllowCredentials: false,
+					AllowHeaders:     "*",
+					AllowMethods:     corsDefaultMethods,
+					AllowOrigin:      corsDefaultOrigin,
+					ExposeHeaders:    "",
+					MaxAge:           corsDefaultMaxAge,
+				},
+			},
+		},
 	}
 	annDefault := map[string]string{
 		ingtypes.BackCorsAllowHeaders: corsDefaultHeaders,
@@ -2096,7 +2148,7 @@ func TestBackendServerNaming(t *testing.T) {
 
 func TestBackendProtocol(t *testing.T) {
 	testCase := []struct {
-		source     Source
+		source     *Source
 		useHTX     bool
 		annDefault map[string]string
 		ann        map[string]map[string]string
@@ -2132,7 +2184,7 @@ func TestBackendProtocol(t *testing.T) {
 		},
 		// 2
 		{
-			source: Source{Namespace: "default", Name: "app1", Type: "service"},
+			source: &Source{Namespace: "default", Name: "app1", Type: "service"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackSecureBackends:  "true",
@@ -2151,7 +2203,7 @@ func TestBackendProtocol(t *testing.T) {
 		},
 		// 3
 		{
-			source: Source{Namespace: "default", Name: "app1", Type: "service"},
+			source: &Source{Namespace: "default", Name: "app1", Type: "service"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackSecureBackends:       "true",
@@ -2176,7 +2228,7 @@ func TestBackendProtocol(t *testing.T) {
 		},
 		// 4
 		{
-			source: Source{Namespace: "default", Name: "app1", Type: "service"},
+			source: &Source{Namespace: "default", Name: "app1", Type: "service"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackSecureBackends:       "true",
@@ -2257,7 +2309,7 @@ WARN skipping CA on service 'default/app1': secret not found: 'default/ca'`,
 		},
 		// 10
 		{
-			source: Source{Namespace: "default", Name: "app1", Type: "service"},
+			source: &Source{Namespace: "default", Name: "app1", Type: "service"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackBackendProtocol: "invalid-ssl",
@@ -2268,7 +2320,7 @@ WARN skipping CA on service 'default/app1': secret not found: 'default/ca'`,
 		},
 		// 11
 		{
-			source: Source{Namespace: "default", Name: "app1", Type: "service"},
+			source: &Source{Namespace: "default", Name: "app1", Type: "service"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackBackendProtocol: "h2",
@@ -2323,7 +2375,7 @@ WARN skipping CA on service 'default/app1': secret not found: 'default/ca'`,
 		},
 		// 15
 		{
-			source: Source{Namespace: "default", Name: "app", Type: "ingress"},
+			source: &Source{Namespace: "default", Name: "app", Type: "ingress"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackBackendProtocol: "h1-ssl",
@@ -2352,7 +2404,7 @@ WARN skipping CA on service 'default/app1': secret not found: 'default/ca'`,
 		},
 		// 17
 		{
-			source: Source{Namespace: "default", Name: "app", Type: "ingress"},
+			source: &Source{Namespace: "default", Name: "app", Type: "ingress"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackBackendProtocol:      "h1-ssl",
@@ -2395,7 +2447,7 @@ WARN skipping CA on service 'default/app1': secret not found: 'default/ca'`,
 		},
 		// 20
 		{
-			source: Source{Namespace: "default", Name: "app", Type: "ingress"},
+			source: &Source{Namespace: "default", Name: "app", Type: "ingress"},
 			ann: map[string]map[string]string{
 				"/": {
 					ingtypes.BackBackendProtocol:      "h1-ssl",
@@ -2408,10 +2460,58 @@ WARN skipping CA on service 'default/app1': secret not found: 'default/ca'`,
 			},
 			logging: `WARN skipping invalid domain (verify-hostname) on ingress 'default/app': invalid-domain`,
 		},
+		// 21
+		{
+			ann: map[string]map[string]string{
+				"/": {
+					ingtypes.BackSecureBackends:       "true",
+					ingtypes.BackSecureCrtSecret:      "cli",
+					ingtypes.BackSecureVerifyCASecret: "ca",
+				},
+			},
+			tlsSecrets: map[string]string{
+				"default/cli": "/var/haproxy/ssl/cli.pem",
+			},
+			caSecrets: map[string]string{
+				"default/ca": "/var/haproxy/ssl/ca.pem",
+			},
+			expected: hatypes.ServerConfig{
+				Protocol: "h1",
+				Secure:   true,
+			},
+			logging: `
+WARN skipping client certificate on <global>: a globally configured resource name is missing the namespace: cli
+WARN skipping CA on <global>: a globally configured resource name is missing the namespace: ca
+`,
+		},
+		// 22
+		{
+			ann: map[string]map[string]string{
+				"/": {
+					ingtypes.BackSecureBackends:       "true",
+					ingtypes.BackSecureCrtSecret:      "default/cli",
+					ingtypes.BackSecureVerifyCASecret: "default/ca",
+				},
+			},
+			tlsSecrets: map[string]string{
+				"default/cli": "/var/haproxy/ssl/cli.pem",
+			},
+			caSecrets: map[string]string{
+				"default/ca": "/var/haproxy/ssl/ca.pem",
+			},
+			expected: hatypes.ServerConfig{
+				Protocol:    "h1",
+				Secure:      true,
+				CAFilename:  "/var/haproxy/ssl/ca.pem",
+				CAHash:      "3be93154b1cddfd0e1279f4d76022221676d08c7",
+				CrtFilename: "/var/haproxy/ssl/cli.pem",
+				CrtHash:     "f916dd295030e070f4d4aca4508571bc82f549af",
+			},
+		},
 	}
 	for i, test := range testCase {
 		c := setup(t)
-		d := c.createBackendMappingData("default/app", &test.source, test.annDefault, test.ann, test.paths)
+		d := c.createBackendMappingData("default/app", test.source, test.annDefault, test.ann, test.paths)
 		c.haproxy.Global().UseHTX = test.useHTX
 		c.cache.SecretTLSPath = test.tlsSecrets
 		c.cache.SecretCAPath = test.caSecrets

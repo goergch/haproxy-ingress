@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM haproxy:2.4.22-alpine
+FROM haproxy:2.4.28-alpine
 
 USER root
 
@@ -28,4 +28,7 @@ RUN deluser haproxy\
  && chmod 0 /var/empty
 
 STOPSIGNAL SIGTERM
+
+# dumb-init reaps the old haproxy process in the embedded, non master-worker mode,
+# after receiving SIGUSR1, avoiding it to become a zombie.
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/start.sh"]

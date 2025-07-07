@@ -18,9 +18,11 @@ package utils
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 
 	api "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 
 	"github.com/jcmoraisjr/haproxy-ingress/pkg/converters/types"
 )
@@ -69,33 +71,105 @@ func FindContainerPort(pod *api.Pod, svcPort *api.ServicePort) int {
 type Endpoint struct {
 	IP        string
 	Port      int
+	Target    string
 	TargetRef string
 }
 
-// CreateEndpoints ...
-func CreateEndpoints(cache types.Cache, svc *api.Service, svcPort *api.ServicePort) (ready, notReady []*Endpoint, err error) {
-	if svc.Spec.Type == api.ServiceTypeExternalName {
-		ready, err := createEndpointsExternalName(cache, svc, svcPort)
-		return ready, nil, err
-	}
-	endpoints, err := cache.GetEndpoints(svc)
-	if err != nil {
-		return nil, nil, err
-	}
+func createEndpoints(endpoints *api.Endpoints, svcPort *api.ServicePort) (ready, notReady []*Endpoint, err error) {
 	for _, subset := range endpoints.Subsets {
 		for _, epPort := range subset.Ports {
 			if matchPort(svcPort, &epPort) {
 				port := int(epPort.Port)
 				for _, addr := range subset.Addresses {
-					ready = append(ready, newEndpointAddr(&addr, port))
+					ready = append(ready, newEndpoint(addr.IP, port, addr.TargetRef))
 				}
 				for _, addr := range subset.NotReadyAddresses {
-					notReady = append(notReady, newEndpointAddr(&addr, port))
+					notReady = append(notReady, newEndpoint(addr.IP, port, addr.TargetRef))
 				}
 			}
 		}
 	}
 	return ready, notReady, nil
+}
+
+func createEndpointSlices(endpointSlices []*discoveryv1.EndpointSlice, svcPort *api.ServicePort) (ready, notReady []*Endpoint, err error) {
+	for _, endpointSlice := range endpointSlices {
+		for _, epPort := range endpointSlice.Ports {
+			// A pod corresponding to an endpoint slice can expose multiple ports.
+			// In current case we are only interested in those ports in which the
+			// service is interested in. Service's interest is reflected by svcPort.
+
+			// Protocols must match. Example, no point routing UDP traffic to TCP port.
+			svcPortProtocol := api.ProtocolTCP
+			if svcPort.Protocol != "" {
+				svcPortProtocol = svcPort.Protocol
+			}
+			if svcPortProtocol != *epPort.Protocol {
+				continue
+			}
+
+			// From the docs of core.v1.ServicePort:
+			//
+			// When considering the endpoints for a Service, this [Name field of service]
+			// must match the 'name' field in the EndpointPort.
+			if svcPort.Name != "" && svcPort.Name != *epPort.Name {
+				continue
+			}
+
+			for _, endpoint := range endpointSlice.Endpoints {
+				// kube-proxy also consults the first address in the Endpoint.
+				// https://github.com/kubernetes/kubernetes/issues/106267
+				// Using that as an argument to justify why we are using first
+				// address here.
+				domainEndpoint := newEndpoint(endpoint.Addresses[0], int(*epPort.Port), endpoint.TargetRef)
+
+				// From the API docs of EndpointConditions:
+				//
+				// "ready indicates that this endpoint is prepared to receive traffic,
+				// according to whatever system is managing the endpoint. A nil value
+				// indicates an unknown state. In most cases consumers should interpret this
+				// unknown state as ready. For compatibility reasons, ready should never be
+				// "true" for terminating endpoints."
+				if endpoint.Conditions.Ready == nil || *endpoint.Conditions.Ready {
+					ready = append(ready, domainEndpoint)
+				} else {
+					// https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/
+					// Default EndpointSliceTerminatingCondition is false in 1.21
+					// Default EndpointSliceTerminatingCondition is true in 1.22
+					notReady = append(notReady, domainEndpoint)
+				}
+			}
+		}
+	}
+	return ready, notReady, nil
+}
+
+// CreateEndpoints ...
+func CreateEndpoints(cache types.Cache, svc *api.Service, svcPort *api.ServicePort, useEndpointSlices bool) (ready, notReady []*Endpoint, err error) {
+	switch {
+	case svc.Spec.Type == api.ServiceTypeExternalName:
+		ready, err = createEndpointsExternalName(cache, svc, svcPort)
+	case useEndpointSlices:
+		endpoints, err1 := cache.GetEndpointSlices(svc)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+		ready, notReady, err = createEndpointSlices(endpoints, svcPort)
+	default:
+		endpoints, err1 := cache.GetEndpoints(svc)
+		if err1 != nil {
+			return nil, nil, err1
+		}
+		ready, notReady, err = createEndpoints(endpoints, svcPort)
+	}
+	// ensures predictable result, allowing to compare old and new states
+	sort.Slice(ready, func(i, j int) bool {
+		return ready[i].Target < ready[j].Target
+	})
+	sort.Slice(notReady, func(i, j int) bool {
+		return notReady[i].Target < notReady[j].Target
+	})
+	return ready, notReady, err
 }
 
 func matchPort(svcPort *api.ServicePort, epPort *api.EndpointPort) bool {
@@ -111,7 +185,7 @@ func CreateSvcEndpoint(svc *api.Service, svcPort *api.ServicePort) (endpoint *En
 	if port <= 0 {
 		return nil, fmt.Errorf("invalid port number: %d", port)
 	}
-	return newEndpointIP(svc.Spec.ClusterIP, int(port)), nil
+	return newEndpoint(svc.Spec.ClusterIP, int(port), nil), nil
 }
 
 func createEndpointsExternalName(cache types.Cache, svc *api.Service, svcPort *api.ServicePort) (endpoints []*Endpoint, err error) {
@@ -125,30 +199,22 @@ func createEndpointsExternalName(cache types.Cache, svc *api.Service, svcPort *a
 	}
 	endpoints = make([]*Endpoint, len(addr))
 	for i, ip := range addr {
-		endpoints[i] = newEndpointIP(ip.String(), port)
+		endpoints[i] = newEndpoint(ip.String(), port, nil)
 	}
 	return endpoints, nil
 }
 
-func newEndpointAddr(addr *api.EndpointAddress, port int) *Endpoint {
+func newEndpoint(ip string, port int, targetRef *api.ObjectReference) *Endpoint {
+	var targetRefStr string
+	if targetRef != nil {
+		targetRefStr = fmt.Sprintf("%s/%s", targetRef.Namespace, targetRef.Name)
+
+	}
 	return &Endpoint{
-		IP:        addr.IP,
+		IP:        ip,
 		Port:      port,
-		TargetRef: targetRefToString(addr.TargetRef),
-	}
-}
-
-func targetRefToString(targetRef *api.ObjectReference) string {
-	if targetRef == nil {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", targetRef.Namespace, targetRef.Name)
-}
-
-func newEndpointIP(ip string, port int) *Endpoint {
-	return &Endpoint{
-		IP:   ip,
-		Port: port,
+		Target:    ip + ":" + strconv.Itoa(port),
+		TargetRef: targetRefStr,
 	}
 }
 

@@ -1285,22 +1285,10 @@ func (c *testConfig) createSecret1(secretName string) *api.Secret {
 }
 
 func (c *testConfig) createService1(name, port, ip string) (*api.Service, *api.Endpoints) {
-	svc, ep := conv_helper.CreateService(name, port, ip)
+	svc, ep, _ := conv_helper.CreateService(name, port, ip)
 	c.cache.SvcList = append(c.cache.SvcList, svc)
 	c.cache.EpList[name] = ep
 	return svc, ep
-}
-
-func (c *testConfig) createGatewayClass1() *gateway.GatewayClass {
-	gc := CreateObject(`
-apiVersion: networking.x-k8s.io/v1alpha1
-kind: GatewayClass
-metadata:
-  name: haproxy
-spec:
-  controller: haproxy-ingress.github.io/controller`).(*gateway.GatewayClass)
-	c.cache.GatewayA1ClassList = append(c.cache.GatewayA1ClassList, gc)
-	return gc
 }
 
 func (c *testConfig) createGateway1(name, matchLabels string) *gateway.Gateway {

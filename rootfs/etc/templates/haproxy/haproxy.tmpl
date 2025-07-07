@@ -404,6 +404,14 @@ backend {{ $backend.ID }}
 {{- end }}
 
 {{- /*------------------------------------*/}}
+{{- range $snippet := $backend.CustomConfig }}
+    {{ $snippet }}
+{{- end }}
+{{- range $snippet := index $global.CustomProxy $backend.ID }}
+    {{ $snippet }}
+{{- end }}
+
+{{- /*------------------------------------*/}}
 {{- /*             MODE HTTP              */}}
 {{- /*------------------------------------*/}}
 {{- else }}{{/*** if $backend.ModeTCP ***/}}
@@ -587,8 +595,14 @@ backend {{ $backend.ID }}
 {{- if eq $waf.Mode "deny" }}
 {{- range $pathIDs := $wafCfg.PathIDs $i }}
 {{- if $global.ModSecurity.UseCoraza }}
+    http-request redirect code 302 location %[var(txn.coraza.data)] if { var(txn.coraza.action) -m str redirect }
+    http-response redirect code 302 location %[var(txn.coraza.data)] if { var(txn.coraza.action) -m str redirect }
+    http-request deny deny_status 403 hdr waf-block "request"  if { var(txn.coraza.action) -m str deny }
+    http-response deny deny_status 403 hdr waf-block "response" if { var(txn.coraza.action) -m str deny }
+    http-request silent-drop if { var(txn.coraza.action) -m str drop }
+    http-response silent-drop if { var(txn.coraza.action) -m str drop }
     http-request deny deny_status 504 if { var(txn.coraza.error) -m int gt 0 }
-    http-request deny if !{ var(txn.coraza.fail) -m int eq 0 }
+    http-response deny deny_status 504 if { var(txn.coraza.error) -m int gt 0 }
 {{- else }}
     http-request deny if { var(txn.modsec.code) -m int gt 0 }
 {{- end }}
@@ -780,7 +794,7 @@ backend {{ $backend.ID }}
         {{- if $pathIDs }} if { var(txn.pathID) -m str {{ $pathIDs }} }{{ end }}
 {{- end }}
 {{- if $dynamicOrigin }}
-    http-response set-header Vary %[res.hdr(Vary)],Origin
+    http-response set-header Vary %[res.fhdr(Vary)],Origin
         {{- "" }} if { res.hdr(Vary) -m found }
         {{- if $pathIDs }} { var(txn.pathID) -m str {{ $pathIDs }} }{{ end }}
     http-response set-header Vary Origin
@@ -1002,20 +1016,12 @@ frontend {{ $proxy.Name }}
 {{- range $tcpport := $tcpservices }}
 {{- $proxy_name := printf "_front_tcp_%d" $tcpport.Port }}
 frontend {{ $proxy_name }}
-{{- $tls := $tcpport.TLS }}
+{{- $hasTLS := $tcpport.HasTLS }}
     bind {{ $global.Bind.TCPBindIP }}:{{ $tcpport.Port }}
         {{- if $tcpport.ProxyProt }} accept-proxy{{ end }}
-        {{- if $tls.TLSFilename }}
-            {{- "" }} ssl crt {{ $tls.TLSFilename }}
-            {{- if $tls.ALPN }} alpn {{ $tls.ALPN }}{{ end }}
-            {{- if $tls.CAFilename }}
-                {{- "" }} ca-file {{ $tls.CAFilename }} verify {{ if $tls.CAVerifyOptional}}optional{{ else }}required{{ end }}
-                {{- if (eq $tls.CAVerify "skip-check") }} ca-ignore-err all crt-ignore-err all{{ end }}
-                {{- if $tls.CRLFilename }} crl-file {{ $tls.CRLFilename }}{{ end }}
-            {{- end }}
-            {{- if $tls.Ciphers }} ciphers {{ $tls.Ciphers }}{{ end }}
-            {{- if $tls.CipherSuites }} ciphersuites {{ $tls.CipherSuites }}{{ end }}
-            {{- if $tls.Options }} {{ $tls.Options }}{{ end }}
+        {{- if $hasTLS }}
+            {{- "" }} ssl crt-list {{ $global.LocalFSPrefix }}/etc/haproxy/crtlist_tcp_{{ $tcpport.Port }}.list
+            {{- "" }} ca-ignore-err all crt-ignore-err all
         {{- end }}
     mode tcp
 
@@ -1031,12 +1037,14 @@ frontend {{ $proxy_name }}
 {{- end }}
 
 {{- /*------------------------------------*/}}
+{{- /* it is possible to have SNIMap without TLS, this means a SNI based hostname */}}
+{{- /* selection for TLS content, whose ssl offload is made in the backend. */}}
 {{- if $tcpport.SNIMap.HasHost }}
-{{- if not $tls.TLSFilename }}
+{{- if not $hasTLS }}
     tcp-request inspect-delay 5s
 {{- end }}
 {{- range $match := $tcpport.SNIMap.MatchFiles }}
-    tcp-request content set-var(req.tcpback) {{ if $tls.TLSFilename }}ssl_fc_sni{{ else }}req.ssl_sni{{ end }},lower
+    tcp-request content set-var(req.tcpback) {{ if $hasTLS }}ssl_fc_sni{{ else }}req.ssl_sni{{ end }},lower
         {{- "" }},map_{{ $match.Method }}({{ $match.Filename }})
         {{- if not $match.First }} if !{ var(req.tcpback) -m found }{{ end }}
 {{- end }}
@@ -1052,7 +1060,7 @@ frontend {{ $proxy_name }}
 
 {{- /*------------------------------------*/}}
 {{- if $tcpport.SNIMap.HasHost }}
-{{- if not $tls.TLSFilename }}
+{{- if not $hasTLS }}
     tcp-request content accept if { req.ssl_hello_type 1 }
 {{- end }}
     use_backend %[var(req.tcpback)] if { var(req.tcpback) -m found }
@@ -1183,8 +1191,19 @@ frontend {{ $proxy__front_http }}
 {{- end }}
     http-request set-var(req.base) var(req.host),concat(\#,req.path)
 
-{{- /*------------------------------------*/}}
 {{- $acmeexclusive := and $global.Acme.Enabled (not $global.Acme.Shared) }}
+
+{{- /*------------------------------------*/}}
+{{- if $fmaps.RedirRootSSLMap.HasHost }}
+{{- range $match := $fmaps.RedirRootSSLMap.MatchFiles }}
+    http-request redirect scheme https
+        {{- if $global.SSL.RedirectCode }} code {{ $global.SSL.RedirectCode }}{{ end }}
+        {{- "" }} if{{ if $acmeexclusive }} !acme-challenge{{ end }}
+        {{- "" }} { path / } { var(req.host) -i -m {{ $match.Method }} -f {{ $match.Filename }} }
+{{- end }}
+{{- end }}
+
+{{- /*------------------------------------*/}}
 {{- if $fmaps.RedirFromRootMap.HasHost }}
 {{- range $match := $fmaps.RedirFromRootMap.MatchFiles }}
     http-request set-var(req.rootredir) var(req.host)
@@ -1225,11 +1244,7 @@ frontend {{ $proxy__front_http }}
 {{- end }}
 
 {{- /*------------------------------------*/}}
-{{- if $global.Acme.Enabled }}
-    {{- template "redirectTo" map $frontend $fmaps "!acme-challenge" }}
-{{- else }}
-    {{- template "redirectTo" map $frontend $fmaps "" }}
-{{- end }}
+{{- template "redirectTo" map $global $frontend $fmaps }}
 
 {{- /*------------------------------------*/}}
 {{- range $match := $fmaps.HTTPHostMap.MatchFiles }}
@@ -1247,11 +1262,7 @@ frontend {{ $proxy__front_http }}
 {{- end }}
 
 {{- /*------------------------------------*/}}
-{{- if $global.Acme.Enabled }}
-    {{- template "redirectFrom" map $frontend $fmaps "req.backend" "!acme-challenge" }}
-{{- else }}
-    {{- template "redirectFrom" map $frontend $fmaps "req.backend" "" }}
-{{- end }}
+{{- template "redirectFrom" map $global $frontend $fmaps "req.backend" }}
 
 {{- /*------------------------------------*/}}
 {{- range $snippet := $global.CustomFrontendLate }}
@@ -1318,7 +1329,7 @@ frontend {{ $frontend.Name }}
     http-request set-var(req.base) var(req.host),concat(\#,req.path)
 
 {{- /*------------------------------------*/}}
-{{- template "redirectTo" map $frontend $fmaps "" }}
+{{- template "redirectTo" map $global $frontend $fmaps }}
 
 {{- /*------------------------------------*/}}
 {{- range $match := $fmaps.HTTPSHostMap.MatchFiles }}
@@ -1336,7 +1347,7 @@ frontend {{ $frontend.Name }}
 {{- end }}
 
 {{- /*------------------------------------*/}}
-{{- template "redirectFrom" map $frontend $fmaps "req.hostbackend" "" }}
+{{- template "redirectFrom" map $global $frontend $fmaps "req.hostbackend" }}
 
 {{- /*------------------------------------*/}}
 {{- if $fmaps.RedirFromRootMap.HasHost }}
@@ -1386,23 +1397,6 @@ frontend {{ $frontend.Name }}
     acl tls-has-invalid-crt ssl_c_verify gt 0
 {{- range $match := $fmaps.TLSAuthList.MatchFiles }}
     acl tls-check-crt ssl_fc_sni -i -m {{ $match.Method }} -f {{ $match.Filename }}
-{{- end }}
-
-{{- if $fmaps.HTTPSSNIMap.HasHost }}
-    http-request set-var(req.snibase) ssl_fc_sni,lower,concat(\#,req.path)
-{{- range $match := $fmaps.HTTPSSNIMap.MatchFiles }}
-    http-request set-var(req.snibackend) var(req.snibase)
-        {{- if $match.Lower }},lower{{ end }}
-        {{- "" }},map_{{ $match.Method }}({{ $match.Filename }})
-        {{- if not $match.First }} if !{ var(req.snibackend) -m found }{{ end }}
-{{- end }}
-{{- range $match := $fmaps.HTTPSSNIMap.MatchFiles }}
-    http-request set-var(req.snibackend) var(req.base)
-        {{- if $match.Lower }},lower{{ end }}
-        {{- "" }},map_{{ $match.Method }}({{ $match.Filename }})
-        {{- "" }} if !{ var(req.snibackend) -m found } !tls-has-crt
-        {{- if $fmaps.TLSNeedCrtList.HasHost }} !tls-host-need-crt{{ end }}
-{{- end }}
 {{- end }}
 
 {{- if $mandatory }}
@@ -1480,45 +1474,45 @@ frontend {{ $frontend.Name }}
 {{- /*------------------------------------*/}}
 {{- /*------------------------------------*/}}
 {{- define "redirectFrom" }}
-{{- $frontend := .p1 }}
-{{- $fmaps := .p2 }}
-{{- $varbe := .p3 }}
-{{- $acls := .p4 }}
+{{- $global := .p1 }}
+{{- $frontend := .p2 }}
+{{- $fmaps := .p3 }}
+{{- $varbe := .p4 }}
 {{- if $fmaps.RedirFromMap.MatchFiles }}
 {{- range $match := $fmaps.RedirFromMap.MatchFiles }}
     http-request set-var(req.redirdest) var(req.host)
         {{- if $match.Lower }},lower{{ end }}
         {{- "" }},map_{{ $match.Method }}({{ $match.Filename }})
         {{- "" }} if
-        {{- if $acls }} {{ $acls }}{{ end }}
+        {{- if $global.NoRedirects }} !{ path_beg{{ range $global.NoRedirects }} "{{ . }}"{{ end }} }{{ end }}
         {{- "" }} !{ var({{ $varbe }}) -m found }
         {{- if not $match.First }} !{ var(req.redirdest) -m found }{{ end }}
 {{- end }}
     http-request redirect prefix //%[var(req.redirdest)]
         {{- "" }} code {{ $frontend.RedirectFromCode }}
         {{- "" }} if
-        {{- if $acls }} {{ $acls }}{{ end }}
+        {{- if $global.NoRedirects }} !{ path_beg{{ range $global.NoRedirects }} "{{ . }}"{{ end }} }{{ end }}
         {{- "" }} { var(req.redirdest) -m found }
 {{- end }}
 {{- end }}
 
 {{- define "redirectTo" }}
-{{- $frontend := .p1 }}
-{{- $fmaps := .p2 }}
-{{- $acls := .p3 }}
+{{- $global := .p1 }}
+{{- $frontend := .p2 }}
+{{- $fmaps := .p3 }}
 {{- if $fmaps.RedirToMap.MatchFiles }}
 {{- range $match := $fmaps.RedirToMap.MatchFiles }}
     http-request set-var(req.redirto) var(req.base)
         {{- if $match.Lower }},lower{{ end }}
         {{- "" }},map_{{ $match.Method }}({{ $match.Filename }})
-        {{- if or $acls (not $match.First) }} if{{ end }}
-        {{- if $acls }} {{ $acls }}{{ end }}
+        {{- if or $global.NoRedirects (not $match.First) }} if{{ end }}
+        {{- if $global.NoRedirects }} !{ path_beg{{ range $global.NoRedirects }} "{{ . }}"{{ end }} }{{ end }}
         {{- if not $match.First }} !{ var(req.redirto) -m found }{{ end }}
 {{- end }}
     http-request redirect location %[var(req.redirto)]
         {{- "" }} code {{ $frontend.RedirectToCode }}
         {{- "" }} if
-        {{- if $acls }} {{ $acls }}{{ end }}
+        {{- if $global.NoRedirects }} !{ path_beg{{ range $global.NoRedirects }} "{{ . }}"{{ end }} }{{ end }}
         {{- "" }} { var(req.redirto) -m found }
 {{- end }}
 {{- end }}

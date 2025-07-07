@@ -80,6 +80,7 @@ type Global struct {
 	UseHTX                  bool
 	DefaultBackendRedir     string
 	DefaultBackendRedirCode int
+	NoRedirects             []string
 	CustomConfig            []string
 	CustomDefaults          []string
 	CustomFrontendEarly     []string
@@ -149,6 +150,7 @@ type SSLConfig struct {
 	ModeAsync           bool
 	Options             string
 	RedirectCode        int
+	SSLRedirect         bool
 }
 
 // DHParamConfig ...
@@ -280,7 +282,7 @@ type TCPServicePort struct {
 	CustomConfig []string
 	LogFormat    string
 	ProxyProt    bool
-	TLS          TLSConfig
+	TLS          map[string]*TCPServiceTLSConfig
 	//
 	SNIMap *HostsMap
 }
@@ -289,6 +291,11 @@ type TCPServicePort struct {
 type TCPServiceHost struct {
 	hostname string
 	Backend  BackendID
+}
+
+type TCPServiceTLSConfig struct {
+	TLSConfig
+	Hostname string
 }
 
 // CAVerify ...
@@ -399,9 +406,9 @@ type HostsMaps struct {
 type FrontendMaps struct {
 	HTTPHostMap  *HostsMap
 	HTTPSHostMap *HostsMap
-	HTTPSSNIMap  *HostsMap
 	//
 	RedirFromRootMap  *HostsMap
+	RedirRootSSLMap   *HostsMap
 	RedirFromMap      *HostsMap
 	RedirToMap        *HostsMap
 	SSLPassthroughMap *HostsMap
@@ -527,7 +534,6 @@ type HostBackend struct {
 	Namespace string
 	Name      string
 	Port      string
-	ModeTCP   *bool
 }
 
 // HostAliasConfig ...
@@ -545,8 +551,9 @@ type HostRedirectConfig struct {
 // HostTLSConfig ...
 type HostTLSConfig struct {
 	TLSConfig
-	CAErrorPage   string
-	UseDefaultCrt bool
+	CAErrorPage    string
+	UseDefaultCrt  bool
+	FollowRedirect bool
 }
 
 // EndpointNaming ...
@@ -666,7 +673,7 @@ type BackendPathItem struct {
 
 // HostResolver ...
 type HostResolver interface {
-	HasTLS() bool
+	UseTLS() bool
 }
 
 // BackendPath ...

@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	"github.com/kylelemons/godebug/diff"
-	yaml "gopkg.in/yaml.v2"
 
 	hatypes "github.com/jcmoraisjr/haproxy-ingress/pkg/haproxy/types"
 	"github.com/jcmoraisjr/haproxy-ingress/pkg/types/helper_test"
@@ -145,7 +144,7 @@ func TestBackends(t *testing.T) {
     http-response set-header Access-Control-Allow-Origin  "http://d11.local" if { var(txn.pathID) -m str path01 path02 } !cors_allow_origin0
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS" if { var(txn.pathID) -m str path01 path02 }
     http-response set-header Access-Control-Allow-Headers "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization" if { var(txn.pathID) -m str path01 path02 }
-    http-response set-header Vary %[res.hdr(Vary)],Origin if { res.hdr(Vary) -m found } { var(txn.pathID) -m str path01 path02 }
+    http-response set-header Vary %[res.fhdr(Vary)],Origin if { res.hdr(Vary) -m found } { var(txn.pathID) -m str path01 path02 }
     http-response set-header Vary Origin if ! { res.hdr(Vary) -m found } { var(txn.pathID) -m str path01 path02 }
     acl cors_allow_origin1 var(txn.hdr_origin1) -m str https://d21.local https://d22.local https://d23.local https://d24.local https://d25.local
     acl cors_allow_origin1 var(txn.hdr_origin1) -m str https://d26.local
@@ -155,7 +154,7 @@ func TestBackends(t *testing.T) {
     http-response set-header Access-Control-Allow-Origin  "https://d21.local" if { var(txn.pathID) -m str path03 } !cors_allow_origin1
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS" if { var(txn.pathID) -m str path03 }
     http-response set-header Access-Control-Allow-Headers "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization" if { var(txn.pathID) -m str path03 }
-    http-response set-header Vary %[res.hdr(Vary)],Origin if { res.hdr(Vary) -m found } { var(txn.pathID) -m str path03 }
+    http-response set-header Vary %[res.fhdr(Vary)],Origin if { res.hdr(Vary) -m found } { var(txn.pathID) -m str path03 }
     http-response set-header Vary Origin if ! { res.hdr(Vary) -m found } { var(txn.pathID) -m str path03 }
     http-response set-header Access-Control-Allow-Origin  "https://d31.local" if { var(txn.pathID) -m str path04 }
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS" if { var(txn.pathID) -m str path04 }
@@ -182,7 +181,7 @@ func TestBackends(t *testing.T) {
     http-response set-header Access-Control-Allow-Origin  "https://d11.local" if !cors_allow_origin0
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     http-response set-header Access-Control-Allow-Headers "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-    http-response set-header Vary %[res.hdr(Vary)],Origin if { res.hdr(Vary) -m found }
+    http-response set-header Vary %[res.fhdr(Vary)],Origin if { res.hdr(Vary) -m found }
     http-response set-header Vary Origin if ! { res.hdr(Vary) -m found }`,
 		},
 		{
@@ -208,7 +207,7 @@ func TestBackends(t *testing.T) {
     http-response set-header Access-Control-Allow-Origin  "https://d11.local" if !cors_allow_origin0
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     http-response set-header Access-Control-Allow-Headers "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-    http-response set-header Vary %[res.hdr(Vary)],Origin if { res.hdr(Vary) -m found }
+    http-response set-header Vary %[res.fhdr(Vary)],Origin if { res.hdr(Vary) -m found }
     http-response set-header Vary Origin if ! { res.hdr(Vary) -m found }`,
 		},
 		{
@@ -234,7 +233,7 @@ func TestBackends(t *testing.T) {
     http-response set-header Access-Control-Allow-Origin  "https://d11.local" if !cors_allow_origin0
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     http-response set-header Access-Control-Allow-Headers "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-    http-response set-header Vary %[res.hdr(Vary)],Origin if { res.hdr(Vary) -m found }
+    http-response set-header Vary %[res.fhdr(Vary)],Origin if { res.hdr(Vary) -m found }
     http-response set-header Vary Origin if ! { res.hdr(Vary) -m found }`,
 		},
 		{
@@ -260,7 +259,7 @@ func TestBackends(t *testing.T) {
     http-response set-header Access-Control-Allow-Origin  "https://d11.local" if !cors_allow_origin0
     http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     http-response set-header Access-Control-Allow-Headers "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-    http-response set-header Vary %[res.hdr(Vary)],Origin if { res.hdr(Vary) -m found }
+    http-response set-header Vary %[res.fhdr(Vary)],Origin if { res.hdr(Vary) -m found }
     http-response set-header Vary Origin if ! { res.hdr(Vary) -m found }`,
 		},
 		{
@@ -1028,6 +1027,14 @@ d1.local#/ path01`,
 			},
 			srvsuffix: "id 1234567",
 		},
+		{
+			doconfig: func(g *hatypes.Global, h *hatypes.Host, b *hatypes.Backend) {
+				b.ModeTCP = true
+				b.CustomConfig = []string{"## custom for TCP backend"}
+			},
+			expected: `
+    ## custom for TCP backend`,
+		},
 	}
 	for _, test := range testCases {
 		c := setup(t)
@@ -1629,17 +1636,9 @@ func TestInstanceFrontingProxy(t *testing.T) {
     http-request set-header X-SSL-Client-SHA1 %{+Q}[ssl_c_sha1,hex]
     http-response set-header Strict-Transport-Security "max-age=15768000; includeSubDomains; preload"`
 		setvarBegin = `
-    http-request set-var(req.snibase) ssl_fc_sni,lower,concat(\#,req.path)
-    http-request set-var(req.snibackend) var(req.snibase),lower,map_beg(/etc/haproxy/maps/_front_https_sni__begin.map)
-    http-request set-var(req.snibackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_sni__begin.map) if !{ var(req.snibackend) -m found } !tls-has-crt !tls-host-need-crt
-    http-request set-var(req.tls_nocrt_redir) str(_internal) if !tls-has-crt tls-need-crt
-    http-request set-var(req.tls_invalidcrt_redir) str(_internal) if tls-has-invalid-crt tls-check-crt`
+    http-request set-var(req.hostbackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_host__begin.map)`
 		setvarRegex = `
-    http-request set-var(req.snibase) ssl_fc_sni,lower,concat(\#,req.path)
-    http-request set-var(req.snibackend) var(req.snibase),map_reg(/etc/haproxy/maps/_front_https_sni__regex.map)
-    http-request set-var(req.snibackend) var(req.base),map_reg(/etc/haproxy/maps/_front_https_sni__regex.map) if !{ var(req.snibackend) -m found } !tls-has-crt !tls-host-need-crt
-    http-request set-var(req.tls_nocrt_redir) str(_internal) if !tls-has-crt tls-need-crt
-    http-request set-var(req.tls_invalidcrt_redir) str(_internal) if tls-has-invalid-crt tls-check-crt`
+    http-request set-var(req.hostbackend) var(req.base),map_reg(/etc/haproxy/maps/_front_https_host__regex.map)`
 	)
 	testCases := []struct {
 		frontingBind      string
@@ -1887,13 +1886,15 @@ frontend _front_http` + test.expectedFront + `
 frontend _front_https
     mode http
     bind :443 ssl alpn h2,http/1.1 crt-list /etc/haproxy/maps/_front_bind_crt.list ca-ignore-err all crt-ignore-err all
-    <<set-req-base>>
+    <<set-req-base>>` + test.expectedSetvar + `
     http-request set-header X-Forwarded-Proto https
     http-request del-header X-SSL-Client-CN
     http-request del-header X-SSL-Client-DN
     http-request del-header X-SSL-Client-SHA1
     http-request del-header X-SSL-Client-SHA2
-    http-request del-header X-SSL-Client-Cert` + test.expectedACLFront + test.expectedSetvar + `
+    http-request del-header X-SSL-Client-Cert` + test.expectedACLFront + `
+    http-request set-var(req.tls_nocrt_redir) str(_internal) if !tls-has-crt tls-need-crt
+    http-request set-var(req.tls_invalidcrt_redir) str(_internal) if tls-has-invalid-crt tls-check-crt
     http-request use-service lua.send-421 if tls-has-crt { ssl_fc_has_sni } !{ ssl_fc_sni,strcmp(req.host) eq 0 }
     http-request use-service lua.send-496 if { var(req.tls_nocrt_redir) -m str _internal }
     http-request use-service lua.send-421 if !tls-has-crt tls-host-need-crt
@@ -1937,7 +1938,8 @@ func TestInstanceTCPServices(t *testing.T) {
 		hostname  string
 		backend   hatypes.BackendID
 		proxyProt bool
-		tls       hatypes.TLSConfig
+		tls       *hatypes.TLSConfig
+		tcptls    []*hatypes.TCPServiceTLSConfig
 		custom    []string
 	}{
 		{
@@ -1956,21 +1958,21 @@ func TestInstanceTCPServices(t *testing.T) {
 			port:      7003,
 			backend:   b.BackendID(),
 			proxyProt: true,
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7003.pem",
 			},
 		},
 		{
 			port:    7004,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7004.pem",
 			},
 		},
 		{
 			port:    7005,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7005.pem",
 				CAFilename:  "/ssl/ca-7005.pem",
 			},
@@ -1978,7 +1980,7 @@ func TestInstanceTCPServices(t *testing.T) {
 		{
 			port:    7006,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7006.pem",
 				CAFilename:  "/ssl/ca-7006.pem",
 				CRLFilename: "/ssl/crl-7006.pem",
@@ -1987,7 +1989,7 @@ func TestInstanceTCPServices(t *testing.T) {
 		{
 			port:    7007,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				ALPN:        "h2,http/1.1",
 				TLSFilename: "/ssl/7007.pem",
 			},
@@ -1995,7 +1997,7 @@ func TestInstanceTCPServices(t *testing.T) {
 		{
 			port:    7008,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7008.pem",
 				CAFilename:  "/ssl/ca-7008.pem",
 				CAVerify:    hatypes.CAVerifySkipCheck,
@@ -2004,7 +2006,7 @@ func TestInstanceTCPServices(t *testing.T) {
 		{
 			port:    7009,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename:  "/ssl/7009.pem",
 				Ciphers:      "ECDHE-ECDSA-AES128-GCM-SHA256",
 				CipherSuites: "TLS_AES_128_GCM_SHA256",
@@ -2013,7 +2015,7 @@ func TestInstanceTCPServices(t *testing.T) {
 		{
 			port:    7010,
 			backend: b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7010.pem",
 				Options:     "force-tlsv13",
 			},
@@ -2041,7 +2043,7 @@ func TestInstanceTCPServices(t *testing.T) {
 			port:     7012,
 			hostname: "local1",
 			backend:  b.BackendID(),
-			tls: hatypes.TLSConfig{
+			tls: &hatypes.TLSConfig{
 				TLSFilename: "/ssl/7012.pem",
 			},
 		},
@@ -2055,6 +2057,22 @@ func TestInstanceTCPServices(t *testing.T) {
 			backend: b.BackendID(),
 			custom:  []string{"## custom for TCP 7014", "## multi line"},
 		},
+		{
+			port:    7015,
+			backend: b.BackendID(),
+			tcptls: []*hatypes.TCPServiceTLSConfig{{
+				Hostname: "host1.local",
+				TLSConfig: hatypes.TLSConfig{
+					TLSFilename: "/ssl/7015-1.pem",
+				},
+			}, {
+				Hostname: "host2.local",
+				TLSConfig: hatypes.TLSConfig{
+					TLSFilename: "/ssl/7015-2.pem",
+					CAFilename:  "/ssl/7015-2-ca.pem",
+				},
+			}},
+		},
 	}
 
 	for _, svc := range services {
@@ -2064,7 +2082,14 @@ func TestInstanceTCPServices(t *testing.T) {
 		}
 		p, h := c.config.TCPServices().AcquireTCPService(fmt.Sprintf("%s:%d", hostname, svc.port))
 		p.ProxyProt = svc.proxyProt
-		p.TLS = svc.tls
+		if svc.tls != nil {
+			p.TLS[hostname] = &hatypes.TCPServiceTLSConfig{Hostname: hostname, TLSConfig: *svc.tls}
+		}
+		if svc.tcptls != nil {
+			for _, tls := range svc.tcptls {
+				p.TLS[tls.Hostname] = tls
+			}
+		}
 		p.CustomConfig = svc.custom
 		h.Backend = svc.backend
 	}
@@ -2097,35 +2122,35 @@ frontend _front_tcp_7002
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7003
-    bind :7003 accept-proxy ssl crt /ssl/7003.pem
+    bind :7003 accept-proxy ssl crt-list /etc/haproxy/crtlist_tcp_7003.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7004
-    bind :7004 ssl crt /ssl/7004.pem
+    bind :7004 ssl crt-list /etc/haproxy/crtlist_tcp_7004.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7005
-    bind :7005 ssl crt /ssl/7005.pem ca-file /ssl/ca-7005.pem verify required
+    bind :7005 ssl crt-list /etc/haproxy/crtlist_tcp_7005.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7006
-    bind :7006 ssl crt /ssl/7006.pem ca-file /ssl/ca-7006.pem verify required crl-file /ssl/crl-7006.pem
+    bind :7006 ssl crt-list /etc/haproxy/crtlist_tcp_7006.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7007
-    bind :7007 ssl crt /ssl/7007.pem alpn h2,http/1.1
+    bind :7007 ssl crt-list /etc/haproxy/crtlist_tcp_7007.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7008
-    bind :7008 ssl crt /ssl/7008.pem ca-file /ssl/ca-7008.pem verify optional ca-ignore-err all crt-ignore-err all
+    bind :7008 ssl crt-list /etc/haproxy/crtlist_tcp_7008.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7009
-    bind :7009 ssl crt /ssl/7009.pem ciphers ECDHE-ECDSA-AES128-GCM-SHA256 ciphersuites TLS_AES_128_GCM_SHA256
+    bind :7009 ssl crt-list /etc/haproxy/crtlist_tcp_7009.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7010
-    bind :7010 ssl crt /ssl/7010.pem force-tlsv13
+    bind :7010 ssl crt-list /etc/haproxy/crtlist_tcp_7010.list ca-ignore-err all crt-ignore-err all
     mode tcp
     default_backend d1_app_8080
 frontend _front_tcp_7011
@@ -2138,7 +2163,7 @@ frontend _front_tcp_7011
     use_backend %[var(req.tcpback)] if { var(req.tcpback) -m found }
     default_backend d1_app_8080
 frontend _front_tcp_7012
-    bind :7012 ssl crt /ssl/7012.pem
+    bind :7012 ssl crt-list /etc/haproxy/crtlist_tcp_7012.list ca-ignore-err all crt-ignore-err all
     mode tcp
     tcp-request content set-var(req.tcpback) ssl_fc_sni,lower,map_str(/etc/haproxy/maps/_tcp_sni_7012__exact.map)
     use_backend %[var(req.tcpback)] if { var(req.tcpback) -m found }
@@ -2153,6 +2178,10 @@ frontend _front_tcp_7014
     ## custom for TCP 7014
     ## multi line
     default_backend d1_app_8080
+frontend _front_tcp_7015
+    bind :7015 ssl crt-list /etc/haproxy/crtlist_tcp_7015.list ca-ignore-err all crt-ignore-err all
+    mode tcp
+    default_backend d1_app_8080
 <<frontends-default>>
 <<support>>
 `)
@@ -2163,6 +2192,37 @@ local3 d3_app_8080`)
 ^[^.]+\.local4$ d3_app_8080`)
 	c.checkMap("_tcp_sni_7012__exact.map", `
 local1 d1_app_8080`)
+	c.checkMap("crtlist_tcp_7003.list", `
+/ssl/7003.pem !*
+`)
+	c.checkMap("crtlist_tcp_7004.list", `
+/ssl/7004.pem !*
+`)
+	c.checkMap("crtlist_tcp_7005.list", `
+/ssl/7005.pem [ ca-file /ssl/ca-7005.pem verify required ] !*
+`)
+	c.checkMap("crtlist_tcp_7006.list", `
+/ssl/7006.pem [ ca-file /ssl/ca-7006.pem verify required crl-file /ssl/crl-7006.pem ] !*
+`)
+	c.checkMap("crtlist_tcp_7007.list", `
+/ssl/7007.pem [ alpn h2,http/1.1 ] !*
+`)
+	c.checkMap("crtlist_tcp_7008.list", `
+/ssl/7008.pem [ ca-file /ssl/ca-7008.pem verify optional ca-ignore-err all crt-ignore-err all ] !*
+`)
+	c.checkMap("crtlist_tcp_7009.list", `
+/ssl/7009.pem [ ciphers ECDHE-ECDSA-AES128-GCM-SHA256 ciphersuites TLS_AES_128_GCM_SHA256 ] !*
+`)
+	c.checkMap("crtlist_tcp_7010.list", `
+/ssl/7010.pem [ force-tlsv13 ] !*
+`)
+	c.checkMap("crtlist_tcp_7012.list", `
+/ssl/7012.pem local1
+`)
+	c.checkMap("crtlist_tcp_7015.list", `
+/ssl/7015-1.pem host1.local
+/ssl/7015-2.pem [ ca-file /ssl/7015-2-ca.pem verify required ] host2.local
+`)
 	c.logger.CompareLogging(defaultLogging)
 }
 
@@ -2761,6 +2821,7 @@ frontend _front_https
     bind :443 ssl alpn h2,http/1.1 crt-list /etc/haproxy/maps/_front_bind_crt.list ca-ignore-err all crt-ignore-err all
     <<set-req-base>>
     http-request set-var(req.hostbackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_host__begin.map)
+    http-request set-var(req.hostbackend) var(req.base),map_reg(/etc/haproxy/maps/_front_https_host__regex.map) if !{ var(req.hostbackend) -m found }
     <<https-headers>>
     acl tls-has-crt ssl_c_used
     acl tls-need-crt ssl_fc_sni -i -m str -f /etc/haproxy/maps/_front_tls_needcrt__exact.list
@@ -2770,11 +2831,6 @@ frontend _front_https
     acl tls-has-invalid-crt ssl_c_verify gt 0
     acl tls-check-crt ssl_fc_sni -i -m str -f /etc/haproxy/maps/_front_tls_auth__exact.list
     acl tls-check-crt ssl_fc_sni -i -m reg -f /etc/haproxy/maps/_front_tls_auth__regex.list
-    http-request set-var(req.snibase) ssl_fc_sni,lower,concat(\#,req.path)
-    http-request set-var(req.snibackend) var(req.snibase),lower,map_beg(/etc/haproxy/maps/_front_https_sni__begin.map)
-    http-request set-var(req.snibackend) var(req.snibase),map_reg(/etc/haproxy/maps/_front_https_sni__regex.map) if !{ var(req.snibackend) -m found }
-    http-request set-var(req.snibackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_sni__begin.map) if !{ var(req.snibackend) -m found } !tls-has-crt !tls-host-need-crt
-    http-request set-var(req.snibackend) var(req.base),map_reg(/etc/haproxy/maps/_front_https_sni__regex.map) if !{ var(req.snibackend) -m found } !tls-has-crt !tls-host-need-crt
     http-request set-var(req.tls_nocrt_redir) ssl_fc_sni,lower,map_str(/etc/haproxy/maps/_front_tls_missingcrt_pages__exact.map,_internal) if !tls-has-crt tls-need-crt
     http-request set-var(req.tls_nocrt_redir) ssl_fc_sni,lower,map_reg(/etc/haproxy/maps/_front_tls_missingcrt_pages__regex.map,_internal) if { var(req.tls_nocrt_redir) -m str _internal }
     http-request set-var(req.tls_invalidcrt_redir) ssl_fc_sni,lower,map_str(/etc/haproxy/maps/_front_tls_invalidcrt_pages__exact.map,_internal) if tls-has-invalid-crt tls-check-crt
@@ -2811,15 +2867,13 @@ d6.local#/ d_app_8080
 /var/haproxy/ssl/certs/default.pem [ssl-min-ver TLSv1.0 ssl-max-ver TLSv1.2] d6.local
 `)
 	c.checkMap("_front_https_host__begin.map", `
+d2.local#/ d_app_8080
 d3.local#/ d_app_8080
 d4.local#/ d_app_8080
 d5.local#/ d_app_8080
 d6.local#/ d_app_8080
 `)
-	c.checkMap("_front_https_sni__begin.map", `
-d2.local#/ d_app_8080
-`)
-	c.checkMap("_front_https_sni__regex.map", `
+	c.checkMap("_front_https_host__regex.map", `
 ^[^.]+\.d1\.local#/ d_app_8080
 `)
 	c.checkMap("_front_tls_needcrt__exact.list", `
@@ -3161,6 +3215,14 @@ func TestInstanceCustomProxy(t *testing.T) {
 	h.AddPath(b, "/", hatypes.MatchBegin)
 	h.SetSSLPassthrough(true)
 
+	var h2 *hatypes.Host
+	var b2 = c.config.Backends().AcquireBackend("d2", "app", "8080")
+	b2.Endpoints = []*hatypes.Endpoint{endpointS21}
+	b2.ModeTCP = true
+	h2 = c.config.Hosts().AcquireHost("d2.local")
+	h2.AddPath(b, "/", hatypes.MatchBegin)
+	h2.SetSSLPassthrough(true)
+
 	auth := &c.config.Frontend().AuthProxy
 	auth.Name = "_front__auth"
 	auth.RangeStart = 4001
@@ -3179,6 +3241,7 @@ func TestInstanceCustomProxy(t *testing.T) {
 		"_tcp_default_pgsql_5432": {"## custom for _tcp_default_pgsql_5432"},
 		"_auth_backend001_5000":   {"## custom for _auth_backend001_5000"},
 		"d1_app_8080":             {"## custom for d1_app_8080"},
+		"d2_app_8080":             {"## custom for d2_app_8080"},
 		"_redirect_https":         {"## custom for _redirect_https"},
 		"_error404":               {"## custom for _error404", "## line 2"},
 		"_auth_4001":              {"## custom for _auth_4001"},
@@ -3208,6 +3271,10 @@ backend d1_app_8080
     mode http
     ## custom for d1_app_8080
     server s1 172.17.0.11:8080 weight 100
+backend d2_app_8080
+    mode tcp
+    ## custom for d2_app_8080
+    server s21 172.17.0.121:8080 weight 100
 backend _redirect_https
     mode http
     ## custom for _redirect_https
@@ -3548,6 +3615,8 @@ func TestInstanceRootRedirect(t *testing.T) {
 	c := setup(t)
 	defer c.teardown()
 
+	c.config.global.SSL.SSLRedirect = true
+
 	var h *hatypes.Host
 	var b = c.config.Backends().AcquireBackend("d1", "app", "8080")
 	h = c.config.Hosts().AcquireHost("*.d1.local")
@@ -3587,6 +3656,7 @@ frontend _front_http
     mode http
     bind :80
     <<set-req-base>>
+    http-request redirect scheme https if { path / } { var(req.host) -i -m str -f /etc/haproxy/maps/_front_redir_root_ssl__exact.map }
     http-request set-var(req.rootredir) var(req.host),map_str(/etc/haproxy/maps/_front_redir_fromroot__exact.map)
     http-request set-var(req.rootredir) var(req.host),map_reg(/etc/haproxy/maps/_front_redir_fromroot__regex.map) if !{ var(req.rootredir) -m found }
     http-request redirect location %[var(req.rootredir)] if { path / } { var(req.rootredir) -m found }
@@ -3622,6 +3692,9 @@ d2.local#/app1 d2_app_8080
 `)
 	c.checkMap("_front_redir_fromroot__exact.map", `
 d2.local /app1
+`)
+	c.checkMap("_front_redir_root_ssl__exact.map", `
+d2.local
 `)
 	c.checkMap("_front_redir_fromroot__regex.map", `
 ^[^.]+\.d1\.local$ /app
@@ -3720,7 +3793,7 @@ func TestInstanceRedirectFrom(t *testing.T) {
 	testCases := []struct {
 		data     [3]hatypes.HostRedirectConfig
 		code     int
-		acme     bool
+		noredirs []string
 		expHTTP  string
 		expHTTPS string
 		expMaps  map[string]string
@@ -3774,14 +3847,14 @@ sub.d2.local d2.local
 			data: [3]hatypes.HostRedirectConfig{
 				{RedirectHost: "*.d1.local"},
 			},
-			code: 301,
-			acme: true,
+			code:     301,
+			noredirs: []string{"/.well-known/acme-challenge"},
 			expHTTP: `
-    http-request set-var(req.redirdest) var(req.host),map_reg(/etc/haproxy/maps/_front_redir_from__regex.map) if !acme-challenge !{ var(req.backend) -m found }
-    http-request redirect prefix //%[var(req.redirdest)] code 301 if !acme-challenge { var(req.redirdest) -m found }`,
+    http-request set-var(req.redirdest) var(req.host),map_reg(/etc/haproxy/maps/_front_redir_from__regex.map) if !{ path_beg "/.well-known/acme-challenge" } !{ var(req.backend) -m found }
+    http-request redirect prefix //%[var(req.redirdest)] code 301 if !{ path_beg "/.well-known/acme-challenge" } { var(req.redirdest) -m found }`,
 			expHTTPS: `
-    http-request set-var(req.redirdest) var(req.host),map_reg(/etc/haproxy/maps/_front_redir_from__regex.map) if !{ var(req.hostbackend) -m found }
-    http-request redirect prefix //%[var(req.redirdest)] code 301 if { var(req.redirdest) -m found }`,
+    http-request set-var(req.redirdest) var(req.host),map_reg(/etc/haproxy/maps/_front_redir_from__regex.map) if !{ path_beg "/.well-known/acme-challenge" } !{ var(req.hostbackend) -m found }
+    http-request redirect prefix //%[var(req.redirdest)] code 301 if !{ path_beg "/.well-known/acme-challenge" } { var(req.redirdest) -m found }`,
 			expMaps: map[string]string{
 				"_front_redir_from__regex.map": `
 ^[^.]+\.d1\.local$ d1.local
@@ -3793,6 +3866,8 @@ sub.d2.local d2.local
 	for _, test := range testCases {
 		c := setup(t)
 		defer c.teardown()
+
+		c.config.global.NoRedirects = test.noredirs
 
 		var h *hatypes.Host
 		var b = c.config.Backends().AcquireBackend("d1", "app", "8080")
@@ -3819,20 +3894,6 @@ sub.d2.local d2.local
 			c.config.frontend.RedirectFromCode = 302
 		}
 
-		var acmeBackend, acmeACL, acmeUseBackend string
-		if test.acme {
-			acmeBackend = `
-backend _acme_challenge
-    mode http
-    server _acme_server unix@local`
-			acmeACL = `
-    acl acme-challenge path_beg `
-			acmeUseBackend = `
-    use_backend _acme_challenge if acme-challenge`
-			c.config.global.Acme.Socket = "local"
-			c.config.global.Acme.Enabled = true
-		}
-
 		c.Update()
 		c.checkConfig(`
 <<global>>
@@ -3845,11 +3906,11 @@ backend d2_app_8080
     server s21 172.17.0.121:8080 weight 100
 backend d3_app_8080
     mode http
-    server s31 172.17.0.131:8080 weight 100` + acmeBackend + `
+    server s31 172.17.0.131:8080 weight 100
 <<backends-default>>
 frontend _front_http
     mode http
-    bind :80` + acmeACL + `
+    bind :80
     http-request set-var(req.path) path
     http-request set-var(req.host) hdr(host),field(1,:),lower
     http-request set-var(req.base) var(req.host),concat(\#,req.path)
@@ -3859,7 +3920,7 @@ frontend _front_http
     http-request del-header X-SSL-Client-SHA1
     http-request del-header X-SSL-Client-SHA2
     http-request del-header X-SSL-Client-Cert
-    http-request set-var(req.backend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_http_host__begin.map)` + test.expHTTP + acmeUseBackend + `
+    http-request set-var(req.backend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_http_host__begin.map)` + test.expHTTP + `
     use_backend %[var(req.backend)] if { var(req.backend) -m found }
     default_backend _error404
 frontend _front_https
@@ -3890,9 +3951,8 @@ func TestInstanceRedirectTo(t *testing.T) {
 	testCases := []struct {
 		to       [3]string
 		code     int
-		acme     bool
+		noredirs []string
 		expected string
-		expHTTPS string
 		expMaps  map[string]string
 	}{
 		// 0
@@ -3950,13 +4010,10 @@ d1.local#/app2 https://app.local/app2
 			to: [3]string{
 				"https://app.local",
 			},
-			acme: true,
+			noredirs: []string{"/.well-known/acme-challenge"},
 			expected: `
-    http-request set-var(req.redirto) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_redir_to__begin.map) if !acme-challenge
-    http-request redirect location %[var(req.redirto)] code 302 if !acme-challenge { var(req.redirto) -m found }`,
-			expHTTPS: `
-    http-request set-var(req.redirto) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_redir_to__begin.map)
-    http-request redirect location %[var(req.redirto)] code 302 if { var(req.redirto) -m found }`,
+    http-request set-var(req.redirto) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_redir_to__begin.map) if !{ path_beg "/.well-known/acme-challenge" }
+    http-request redirect location %[var(req.redirto)] code 302 if !{ path_beg "/.well-known/acme-challenge" } { var(req.redirto) -m found }`,
 			expMaps: map[string]string{
 				"_front_redir_to__begin.map": `
 d1.local#/ https://app.local
@@ -3968,6 +4025,8 @@ d1.local#/ https://app.local
 	for _, test := range testCases {
 		c := setup(t)
 		defer c.teardown()
+
+		c.config.global.NoRedirects = test.noredirs
 
 		var h = c.config.Hosts().AcquireHost("d1.local")
 		var b = c.config.Backends().AcquireBackend("d1", "app", "8080")
@@ -3994,28 +4053,10 @@ d1.local#/ https://app.local
 			h.AddPath(b, "/app3", hatypes.MatchBegin)
 		}
 
-		if test.expHTTPS == "" {
-			test.expHTTPS = test.expected
-		}
-
 		if test.code != 0 {
 			c.config.frontend.RedirectToCode = test.code
 		} else {
 			c.config.frontend.RedirectToCode = 302
-		}
-
-		var acmeBackend, acmeACL, acmeUseBackend string
-		if test.acme {
-			acmeBackend = `
-backend _acme_challenge
-    mode http
-    server _acme_server unix@local`
-			acmeACL = `
-    acl acme-challenge path_beg `
-			acmeUseBackend = `
-    use_backend _acme_challenge if acme-challenge`
-			c.config.global.Acme.Socket = "local"
-			c.config.global.Acme.Enabled = true
 		}
 
 		c.Update()
@@ -4030,11 +4071,11 @@ backend d2_app_8080
     server s21 172.17.0.121:8080 weight 100
 backend d3_app_8080
     mode http
-    server s31 172.17.0.131:8080 weight 100` + acmeBackend + `
+    server s31 172.17.0.131:8080 weight 100
 <<backends-default>>
 frontend _front_http
     mode http
-    bind :80` + acmeACL + `
+    bind :80
     http-request set-var(req.path) path
     http-request set-var(req.host) hdr(host),field(1,:),lower
     http-request set-var(req.base) var(req.host),concat(\#,req.path)
@@ -4044,7 +4085,7 @@ frontend _front_http
     http-request del-header X-SSL-Client-SHA1
     http-request del-header X-SSL-Client-SHA2
     http-request del-header X-SSL-Client-Cert` + test.expected + `
-    http-request set-var(req.backend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_http_host__begin.map)` + acmeUseBackend + `
+    http-request set-var(req.backend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_http_host__begin.map)
     use_backend %[var(req.backend)] if { var(req.backend) -m found }
     default_backend _error404
 frontend _front_https
@@ -4052,7 +4093,7 @@ frontend _front_https
     bind :443 ssl alpn h2,http/1.1 crt-list /etc/haproxy/maps/_front_bind_crt.list ca-ignore-err all crt-ignore-err all
     http-request set-var(req.path) path
     http-request set-var(req.host) hdr(host),field(1,:),lower
-    http-request set-var(req.base) var(req.host),concat(\#,req.path)` + test.expHTTPS + `
+    http-request set-var(req.base) var(req.host),concat(\#,req.path)` + test.expected + `
     http-request set-var(req.hostbackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_host__begin.map)
     http-request set-header X-Forwarded-Proto https
     http-request del-header X-SSL-Client-CN
@@ -4628,8 +4669,14 @@ spoe-message check-request
 			endpoints: []string{"10.0.0.101:12345"},
 			backendExp: `
     filter spoe engine modsecurity config /etc/haproxy/spoe-modsecurity.conf
+    http-request redirect code 302 location %[var(txn.coraza.data)] if { var(txn.coraza.action) -m str redirect }
+    http-response redirect code 302 location %[var(txn.coraza.data)] if { var(txn.coraza.action) -m str redirect }
+    http-request deny deny_status 403 hdr waf-block "request"  if { var(txn.coraza.action) -m str deny }
+    http-response deny deny_status 403 hdr waf-block "response" if { var(txn.coraza.action) -m str deny }
+    http-request silent-drop if { var(txn.coraza.action) -m str drop }
+    http-response silent-drop if { var(txn.coraza.action) -m str drop }
     http-request deny deny_status 504 if { var(txn.coraza.error) -m int gt 0 }
-    http-request deny if !{ var(txn.coraza.fail) -m int eq 0 }`,
+    http-response deny deny_status 504 if { var(txn.coraza.error) -m int gt 0 }`,
 			modsecExp: `
     timeout connect 1s
     timeout server  2s
@@ -4787,9 +4834,6 @@ frontend _front_https
     acl tls-has-crt ssl_c_used
     acl tls-has-invalid-crt ssl_c_verify gt 0
     acl tls-check-crt ssl_fc_sni -i -m reg -f /etc/haproxy/maps/_front_tls_auth__regex.list
-    http-request set-var(req.snibase) ssl_fc_sni,lower,concat(\#,req.path)
-    http-request set-var(req.snibackend) var(req.snibase),map_reg(/etc/haproxy/maps/_front_https_sni__regex.map)
-    http-request set-var(req.snibackend) var(req.base),map_reg(/etc/haproxy/maps/_front_https_sni__regex.map) if !{ var(req.snibackend) -m found } !tls-has-crt
     http-request set-var(req.tls_invalidcrt_redir) ssl_fc_sni,lower,map_reg(/etc/haproxy/maps/_front_tls_invalidcrt_pages__regex.map,_internal) if tls-has-invalid-crt tls-check-crt
     http-request redirect location %[var(req.tls_invalidcrt_redir)] code 303 if { var(req.tls_invalidcrt_redir) -m found } !{ var(req.tls_invalidcrt_redir) -m str _internal }
     http-request use-service lua.send-421 if tls-has-crt { ssl_fc_has_sni } !{ ssl_fc_sni,strcmp(req.host) eq 0 }
@@ -4816,13 +4860,11 @@ d1.local#/ d1_app_8080
 `)
 	c.checkMap("_front_https_host__regex.map", `
 ^[^.]+\.app\.d1\.local#/ d1_app_8080
+^[^.]+\.sub\.d1\.local#/ d1_app_8080
 ^[^.]+\.d2\.local#/ d2_app_8080
 `)
 	c.checkMap("_front_redir_fromroot__regex.map", `
 ^[^.]+\.d2\.local$ /app
-`)
-	c.checkMap("_front_https_sni__regex.map", `
-^[^.]+\.sub\.d1\.local#/ d1_app_8080
 `)
 	c.checkMap("_front_tls_auth__regex.list", `
 ^[^.]+\.sub\.d1\.local$
@@ -4875,12 +4917,10 @@ frontend _front_https
     mode http
     bind :443 ssl alpn h2,http/1.1 crt-list /etc/haproxy/maps/_front_bind_crt.list ca-ignore-err all crt-ignore-err all
     <<set-req-base>>
+    http-request set-var(req.hostbackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_host__begin.map)
     <<https-headers>>
     acl tls-has-crt ssl_c_used
     acl tls-has-invalid-crt ssl_c_verify gt 0
-    http-request set-var(req.snibase) ssl_fc_sni,lower,concat(\#,req.path)
-    http-request set-var(req.snibackend) var(req.snibase),lower,map_beg(/etc/haproxy/maps/_front_https_sni__begin.map)
-    http-request set-var(req.snibackend) var(req.base),lower,map_beg(/etc/haproxy/maps/_front_https_sni__begin.map) if !{ var(req.snibackend) -m found } !tls-has-crt
     http-request use-service lua.send-421 if tls-has-crt { ssl_fc_has_sni } !{ ssl_fc_sni,strcmp(req.host) eq 0 }
     use_backend %[var(req.hostbackend)] if { var(req.hostbackend) -m found }
     use_backend %[var(req.snibackend)] if { var(req.snibackend) -m found }
@@ -4895,7 +4935,7 @@ d1.local#/ d1_app_8080
 /var/haproxy/ssl/certs/default.pem !*
 /var/haproxy/ssl/certs/default.pem [ca-file /var/haproxy/ssl/ca/d1.local.pem verify optional] d1.local
 `)
-	c.checkMap("_front_https_sni__begin.map", `
+	c.checkMap("_front_https_host__begin.map", `
 d1.local#/ d1_app_8080
 `)
 
@@ -5013,6 +5053,15 @@ func setupOptions(options testOptions) *testConfig {
 		2048,
 	); err != nil {
 		t.Errorf("error parsing map.tmpl: %v", err)
+	}
+	if err := instance.crtlistTmpl.NewTemplate(
+		"crtlist.tmpl",
+		"../../rootfs/etc/templates/crtlist/crtlist.tmpl",
+		"",
+		0,
+		2048,
+	); err != nil {
+		t.Errorf("error parsing crtlist.tmpl: %v", err)
 	}
 	if err := instance.haResponseTmpl.NewTemplate(
 		"response.http.tmpl",
@@ -5161,14 +5210,9 @@ var defaultLogging = `
 INFO (test) reload was skipped
 INFO haproxy successfully reloaded (embedded daemon)`
 
-func _yamlMarshal(in interface{}) string {
-	out, _ := yaml.Marshal(in)
-	return string(out)
-}
-
 func (c *testConfig) Update() {
 	timer := utils.NewTimer(nil)
-	c.instance.Update(timer)
+	_ = c.instance.Update(timer)
 }
 
 func (c *testConfig) checkConfig(expected string) {

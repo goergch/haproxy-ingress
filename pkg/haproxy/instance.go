@@ -70,8 +70,8 @@ type Instance interface {
 	ParseTemplates() error
 	Config() Config
 	CalcIdleMetric()
-	Update(timer *utils.Timer)
-	Reload(timer *utils.Timer)
+	Update(timer *utils.Timer) error
+	Reload(timer *utils.Timer) error
 	Shutdown()
 }
 
@@ -86,6 +86,7 @@ func CreateInstance(logger types.Logger, options InstanceOptions) Instance {
 		//
 		haproxyTmpl:     template.CreateConfig(),
 		mapsTmpl:        template.CreateConfig(),
+		crtlistTmpl:     template.CreateConfig(),
 		modsecTmpl:      template.CreateConfig(),
 		haResponseTmpl:  template.CreateConfig(),
 		luaResponseTmpl: template.CreateConfig(),
@@ -104,6 +105,7 @@ type instance struct {
 	//
 	haproxyTmpl     *template.Config
 	mapsTmpl        *template.Config
+	crtlistTmpl     *template.Config
 	modsecTmpl      *template.Config
 	haResponseTmpl  *template.Config
 	luaResponseTmpl *template.Config
@@ -115,17 +117,17 @@ func (i *instance) AcmeCheck(source string) (int, error) {
 		return count, fmt.Errorf("controller wasn't started yet")
 	}
 	if i.options.AcmeQueue == nil {
-		return count, fmt.Errorf("Acme queue wasn't configured")
+		return count, fmt.Errorf("acme queue wasn't configured")
 	}
 	hasAccount := i.acmeEnsureConfig(i.config.AcmeData())
 	if !hasAccount {
-		return count, fmt.Errorf("Cannot create or retrieve the acme client account")
+		return count, fmt.Errorf("cannot create or retrieve the acme client account")
 	}
 	le := i.options.LeaderElector
 	if !le.IsLeader() {
 		msg := fmt.Sprintf("skipping acme periodic check, leader is %s", le.LeaderName())
 		i.logger.Info(msg)
-		return count, fmt.Errorf(msg)
+		return count, fmt.Errorf("%s", msg)
 	}
 	i.logger.Info("starting certificate check (%s)", source)
 	for _, storage := range i.config.AcmeData().Storages().BuildAcmeStorages() {
@@ -166,6 +168,7 @@ func (i *instance) acmeRemoveStorage(storage string) {
 func (i *instance) ParseTemplates() error {
 	i.haproxyTmpl.ClearTemplates()
 	i.mapsTmpl.ClearTemplates()
+	i.crtlistTmpl.ClearTemplates()
 	i.modsecTmpl.ClearTemplates()
 	i.haResponseTmpl.ClearTemplates()
 	i.luaResponseTmpl.ClearTemplates()
@@ -191,6 +194,15 @@ func (i *instance) ParseTemplates() error {
 	if err := i.mapsTmpl.NewTemplate(
 		"map.tmpl",
 		templatesDir+"/map/map.tmpl",
+		"",
+		0,
+		2048,
+	); err != nil {
+		return err
+	}
+	if err := i.crtlistTmpl.NewTemplate(
+		"crtlist.tmpl",
+		templatesDir+"/crtlist/crtlist.tmpl",
 		"",
 		0,
 		2048,
@@ -253,9 +265,9 @@ func (i *instance) CalcIdleMetric() {
 	i.metrics.AddIdleFactor(idle)
 }
 
-func (i *instance) Update(timer *utils.Timer) {
+func (i *instance) Update(timer *utils.Timer) error {
 	i.acmeUpdate()
-	i.haproxyUpdate(timer)
+	return i.haproxyUpdate(timer)
 }
 
 func (i *instance) acmeUpdate() {
@@ -280,10 +292,10 @@ func (i *instance) acmeUpdate() {
 	}
 }
 
-func (i *instance) haproxyUpdate(timer *utils.Timer) {
+func (i *instance) haproxyUpdate(timer *utils.Timer) error {
 	// nil config, just ignore
 	if i.config == nil {
-		return
+		return nil
 	}
 	//
 	// this should be taken into account when refactoring this func:
@@ -295,19 +307,20 @@ func (i *instance) haproxyUpdate(timer *utils.Timer) {
 	i.config.SyncConfig()
 	i.config.Shrink()
 	if err := i.config.WriteTCPServicesMaps(); err != nil {
-		i.logger.Error("error building tcp services maps: %v", err)
 		i.metrics.IncUpdateNoop()
-		return
+		return fmt.Errorf("error building tcp services maps: %w", err)
 	}
 	if err := i.config.WriteFrontendMaps(); err != nil {
-		i.logger.Error("error building frontend maps: %v", err)
 		i.metrics.IncUpdateNoop()
-		return
+		return fmt.Errorf("error building frontend maps: %w", err)
 	}
 	if err := i.config.WriteBackendMaps(); err != nil {
-		i.logger.Error("error building backend maps: %v", err)
 		i.metrics.IncUpdateNoop()
-		return
+		return fmt.Errorf("error building backend maps: %w", err)
+	}
+	if err := i.writeCrtLists(); err != nil {
+		i.metrics.IncUpdateNoop()
+		return fmt.Errorf("error building certificates lists: %w", err)
 	}
 	timer.Tick("write_maps")
 	if !i.options.fake {
@@ -331,9 +344,8 @@ func (i *instance) haproxyUpdate(timer *utils.Timer) {
 		err := i.writeConfig()
 		timer.Tick("write_config")
 		if err != nil {
-			i.logger.Error("error writing configuration: %v", err)
 			i.metrics.IncUpdateNoop()
-			return
+			return fmt.Errorf("error writing configuration: %w", err)
 		}
 	}
 	i.updateCertExpiring()
@@ -358,32 +370,33 @@ func (i *instance) haproxyUpdate(timer *utils.Timer) {
 			i.logger.Info("old and new configurations match")
 			i.metrics.IncUpdateNoop()
 		}
-		return
+		return nil
 	}
 	if i.options.ReloadQueue != nil {
 		i.options.ReloadQueue.Notify()
 		i.logger.InfoV(2, "haproxy reload enqueued")
-	} else {
-		i.Reload(timer)
+		return nil
 	}
+	return i.Reload(timer)
 }
 
-func (i *instance) Reload(timer *utils.Timer) {
+func (i *instance) Reload(timer *utils.Timer) error {
 	i.metrics.IncUpdateFull()
 	if i.options.TrackInstances {
 		timeoutStopDur := i.config.Global().TimeoutStopDuration
 		closeSessDur := i.config.Global().CloseSessionsDuration
-		i.conns.TrackCurrentInstance(timeoutStopDur, closeSessDur)
+		if err := i.conns.TrackCurrentInstance(timeoutStopDur, closeSessDur); err != nil {
+			i.logger.Error("error tracking instance: %v", err)
+		}
 	}
 	err := i.reloadHAProxy()
 	timer.Tick("reload_haproxy")
 	if err != nil {
-		i.logger.Error("error reloading server: %v", err)
 		i.updateSuccessful(false)
 		if i.options.TrackInstances {
 			i.conns.ReleaseLastInstance()
 		}
-		return
+		return fmt.Errorf("error reloading server: %w", err)
 	}
 	i.up = true
 	i.updateSuccessful(true)
@@ -399,6 +412,7 @@ func (i *instance) Reload(timer *utils.Timer) {
 		message += "; tracked instance(s): " + strconv.Itoa(i.conns.OldInstancesCount())
 	}
 	i.logger.Info(message)
+	return nil
 }
 
 func (i *instance) Shutdown() {
@@ -459,6 +473,25 @@ func (i *instance) logChanged() {
 	} else {
 		i.logger.InfoV(2, "updating %d backends", len(backsAdd))
 	}
+}
+
+func (i *instance) writeCrtLists() error {
+	// TODO: move here the frontend certificates list from the frontend map writer
+	for port, tcpPort := range i.config.TCPServices().Items() {
+		if len(tcpPort.TLS) == 0 {
+			// no TLS at all, no crt-list file
+			continue
+		}
+		crtListFile := fmt.Sprintf("%s/crtlist_tcp_%d.list", i.options.HAProxyCfgDir, port)
+		err := i.crtlistTmpl.WriteOutput(
+			tcpPort.BuildSortedTLSConfig(),
+			crtListFile,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *instance) writeConfig() (err error) {
@@ -575,7 +608,7 @@ func (i *instance) check() error {
 		out, err := exec.Command("haproxy", "-c", "-f", i.options.HAProxyCfgDir).CombinedOutput()
 		outstr := string(out)
 		if err != nil {
-			return fmt.Errorf(outstr)
+			return fmt.Errorf("%s", outstr)
 		}
 	}
 	return nil
@@ -639,6 +672,7 @@ func (i *instance) startHAProxySync() {
 		"-f", i.options.HAProxyCfgDir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		i.logger.Error("error starting haproxy: %v", err)
 		return
@@ -659,7 +693,9 @@ func (i *instance) startHAProxySync() {
 	select {
 	case <-i.options.StopCh:
 		i.logger.Info("stopping haproxy master process (pid: %d)", cmd.Process.Pid)
-		cmd.Process.Signal(syscall.SIGTERM)
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			i.logger.Error("error stopping haproxy process: %v", err)
+		}
 		<-wait
 	case <-wait:
 	}

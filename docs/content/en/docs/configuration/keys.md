@@ -416,6 +416,7 @@ The table below describes all supported configuration keys.
 | [`modsecurity-use-coraza`](#modsecurity)             | [true\|false]                           | Global  | `false`               |
 | [`nbproc-ssl`](#nbproc)                              | number of process                       | Global  | `0`                |
 | [`nbthread`](#nbthread)                              | number of threads                       | Global  |                    |
+| [`no-redirect-locations`](#redirect)                 | comma-separated list of URIs            | Global  | `/.well-known/acme-challenge` |
 | [`no-tls-redirect-locations`](#ssl-redirect)         | comma-separated list of URIs            | Global  | `/.well-known/acme-challenge` |
 | [`oauth`](#oauth)                                    | "oauth2_proxy"                          | Path    |                    |
 | [`oauth-headers`](#oauth)                            | `<header>:<var>,...`                    | Path    |                    |
@@ -450,6 +451,7 @@ The table below describes all supported configuration keys.
 | [`slots-min-free`](#dynamic-scaling)                 | minimum number of free slots            | Backend | `0`                |
 | [`source-address-intf`](#source-address-intf)        | `<intf1>[,<intf2>...]`                  | Backend |                    |
 | [`ssl-always-add-https`](#ssl-always-add-https)      | [true\|false]                           | Host    | `false`            |
+| [`ssl-always-follow-redirect`](#ssl-always-add-https) | [true\|false]                          | Host    | `true`             |
 | [`ssl-cipher-suites`](#ssl-ciphers)                  | colon-separated list                    | Host    | [see description](#ssl-ciphers) |
 | [`ssl-cipher-suites-backend`](#ssl-ciphers)          | colon-separated list                    | Backend | [see description](#ssl-ciphers) |
 | [`ssl-ciphers`](#ssl-ciphers)                        | colon-separated list                    | Host    | [see description](#ssl-ciphers) |
@@ -2166,13 +2168,14 @@ See also:
 
 ## Redirect
 
-| Configuration key     | Scope    | Default | Since |
-|-----------------------|----------|---------|-------|
-| `redirect-from`       | `Host`   |         | v0.13 |
-| `redirect-from-code`  | `Global` | `302`   | v0.13 |
-| `redirect-from-regex` | `Host`   |         | v0.13 |
-| `redirect-to`         | `Path`   |         | v0.13 |
-| `redirect-to-code`    | `Global` | `302`   | v0.13 |
+| Configuration key       | Scope    | Default                       | Since   |
+|-------------------------|----------|-------------------------------|---------|
+| `no-redirect-locations` | `Global` | `/.well-known/acme-challenge` | v0.14.3 |
+| `redirect-from`         | `Host`   |                               | v0.13   |
+| `redirect-from-code`    | `Global` | `302`                         | v0.13   |
+| `redirect-from-regex`   | `Host`   |                               | v0.13   |
+| `redirect-to`           | `Path`   |                               | v0.13   |
+| `redirect-to-code`      | `Global` | `302`                         | v0.13   |
 
 Configures HTTP redirect. Redirect *from* matches source hostnames that should be redirected
 to the hostname declared in the ingress spec. Redirect *to* uses the hostname declared in the
@@ -2184,6 +2187,7 @@ examples below.
 * `redirect-from-code`: Which HTTP status code should be used in the redirect from. A `302` response is used by default if not configured.
 * `redirect-to`: Defines the destination URL to redirect the incoming request. The declared hostname and path are used only to match the request, the backend will not be used and it's only needed to be declared to satisfy ingress spec validation.
 * `redirect-to-code`: Which HTTP status code should be used in the redirect to. A `302` response is used by default if not configured.
+* `no-redirect-locations`: Defines a comma-separated list of paths that should be ignored by all the redirects. Default value is `/.well-known/acme-challenge`, used by ACME protocol. Configure as an empty string to make the redirect happen on all paths, including the ACME challenge.
 
 **Using redirect-from**
 
@@ -2423,15 +2427,20 @@ See also:
 
 ## SSL always add HTTPS
 
-| Configuration key      | Scope | Default | Since   |
-|------------------------|-------|---------|---------|
-| `ssl-always-add-https` | Host  | `false` | v0.12.4 |
+| Configuration key            | Scope | Default | Since   |
+|------------------------------|-------|---------|---------|
+| `ssl-always-add-https`       | Host  | `false` | v0.12.4 |
+| `ssl-always-follow-redirect` | Host  | `true`  | v0.14.7 |
 
 Every hostname declared on an Ingress resource is added to an internal HTTP map. If at least one Ingress adds the hostname in the `tls` attribute, the hostname is also added to an internal HTTPS map and does ssl offload using the default certificate. A secret name can also be added in the `tls` attribute, overriding the certificate used in the TLS handshake.
 
 `ssl-always-add-https` asks the controller to always add the domain in the internal HTTP and HTTPS maps, even if the `tls` attribute isn't declared. If `false`, a missing `tls` attribute will only declare the domain in the HTTP map and `ssl-redirect` is ignored. If `true`, a missing `tls` attribute adds the domain in the HTTPS map, and the TLS handshake will use the default certificate. If `tls` attribute is used, this configuration is ignored.
 
-The default value is `false` since v0.13 to correctly implement Ingress spec. The default value can be globally changed in the global ConfigMap.
+`ssl-always-follow-redirect` configures how the `ssl-redirect` option should be used when the `tls` attribute is missing, but the host is added in the HTTPS map. When `false`, it makes the controller to mimic a v0.11 and older behavior by not redirecting to HTTPS if the ingress does not declare the `tls` attribute. When `true`, SSL redirect will happen if configured, regardless the presence of the `tls` attribute. This option is ignored if `ssl-always-add-https` is false.
+
+The default value for `ssl-always-add-https` is `false` since v0.13 to correctly implement Ingress spec. The default value can be globally changed in the global ConfigMap.
+
+These options are implemented to help teams upgrade from older controller versions without disruptions. It is suggested not to be changed, and if so, it is also suggested to evolve ingress resources to a state that does not depend on it in the mid term.
 
 ---
 
@@ -2675,6 +2684,12 @@ Logging configurations.
 * `syslog-length`: The maximum line length, log lines larger than this value will be truncated. Defaults to `1024`.
 * `syslog-tag`: Configure the tag field in the syslog header to the supplied string.
 
+The HAProxy process can also send logs to stdout, instead of an external syslog endpoint or a syslog sidecar, by following the steps below:
+
+* Configure `syslog-endpoint` as `stdout` and `syslog-format` as `raw`
+* From v0.12 and newer, configure HAProxy to run as a sidecar, see the [example page]({{% relref "../examples/external-haproxy" %}})
+* From v0.14 and newer, it is also possible to make embedded HAProxy send logs to the controller container by adding [`--master-worker`]({{% relref "command-line/#master-worker" %}}) command-line option - in this case, both controller and haproxy logs will share the same stream
+
 See also:
 
 * https://docs.haproxy.org/2.4/configuration.html#3.1-log
@@ -2701,6 +2716,14 @@ Due to the limited data that can be inspected on TCP requests, a limited number 
 * Regarding `Host` scoped configuration keys:
   * on v0.13, all `Host` scoped configuration keys are unsupported
   * on v0.14, [auth-tls](#auth-tls) are supported
+
+TLS configuration is also applied to the TCP service if configured, making HAProxy to ssl offload requests on that port. Default certificate can be used by leaving `.spec.tls[].secretName` empty. Up to `v0.14.7`, a single certificate can be configured for all incoming requests. Since `v0.14.8`, distinct TLS hosts sections can configure distinct certificates for the TLS handshake, chosen based on the provided TLS SNI extension. The first declared secret act as the default certificate if an incoming SNI does not match any host entry. Distinct TLS related configurations, via annotations, can be applied to distinct secrets by splitting the TCP service configuration into distinct ingress resources.
+
+{{< alert title="Note" >}}
+Note that hostname based selection relies on SNI, so it works only on TLS requests. The encrypted content can be offloaded either by HAProxy, providing the hostname in `.spec.rules[].host` and `.spec.tls`, or offloaded by the backend server, providing the hostname only in `.spec.rules[].host`. Non TLS content cannot be multiplexed on the same TCP port for more than one backend.
+
+Note also that, in the case a hostname does not match, HAProxy will select a backend only if `.spec.defaultBackend` or an empty `.spec.rules[].host` is configured, otherwise the connection is closed without a response.
+{{< /alert >}}
 
 Every TCP service port creates a dedicated haproxy frontend that can be [customized](#configuration-snippet) in three distinct ways:
 

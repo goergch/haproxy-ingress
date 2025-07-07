@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.18.10-alpine AS builder
+FROM golang:1.23.7-alpine AS builder
 
 ARG GIT_TAG
 WORKDIR /src
@@ -28,7 +28,7 @@ RUN GIT_TAG=${GIT_TAG:-latest}\
     -ldflags "-s -w -X ${VERSION_PKG}.RELEASE=${GIT_TAG} -X ${VERSION_PKG}.COMMIT=${GIT_COMMIT} -X ${VERSION_PKG}.REPO=${GIT_REPO}"\
     -o haproxy-ingress pkg/main.go
 
-FROM haproxy:2.4.22-alpine
+FROM haproxy:2.4.28-alpine
 
 USER root
 
@@ -45,4 +45,7 @@ RUN deluser haproxy\
  && chmod 0 /var/empty
 
 STOPSIGNAL SIGTERM
+
+# dumb-init reaps the old haproxy process in the embedded, non master-worker mode,
+# after receiving SIGUSR1, avoiding it to become a zombie.
 ENTRYPOINT ["/usr/bin/dumb-init", "--", "/start.sh"]
