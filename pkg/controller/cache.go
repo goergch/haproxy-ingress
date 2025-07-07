@@ -445,9 +445,30 @@ func (c *k8scache) GetTLSSecretPath(defaultNamespace, secretName string, track [
 		if _, err := os.Stat(content); err != nil {
 			return file, err
 		}
+
+		pemData, err := os.ReadFile(content)
+		if err != nil {
+			return file, err
+		}
+		var block *pem.Block
+		rest := pemData
+		for {
+			block, rest = pem.Decode(rest)
+			if block == nil {
+				return file, fmt.Errorf("failed to find PEM block containing certificate")
+			}
+			if block.Type == "CERTIFICATE" {
+				break
+			}
+			// continue searching for the certificate block
+		}
+
+		// calculate the SHA1 hash of the certificate
+		sha1sum := fmt.Sprintf("%x", crypto.SHA1.New().Sum(block.Bytes))
+
 		return convtypes.CrtFile{
 			Filename: content,
-			SHA1Hash: "-",
+			SHA1Hash: sha1sum,
 		}, nil
 	} else if proto != "secret" {
 		return file, fmt.Errorf("unsupported protocol: %s", proto)

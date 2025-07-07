@@ -169,6 +169,7 @@ func (c *converter) readDefaultCertificate() {
 	crt := c.options.FakeCrtFile
 	if c.options.DefaultCrtSecret != "" {
 		var err error
+		c.logger.Info("reading default TLS certificate from secret '%s'", c.options.DefaultCrtSecret)
 		crt, err = c.cache.GetTLSSecretPath("", c.options.DefaultCrtSecret, nil)
 		if err != nil {
 			crt = c.options.FakeCrtFile
